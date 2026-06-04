@@ -1,0 +1,40 @@
+[project]
+name = "audit-matrix"
+version = "0.1.0"
+description = "Enterprise-grade real-time log auditor and dashboard parser."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Senior Dev", email = "senior@example.com"}
+]
+dependencies = [
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "streamlit>=1.25.0",
+    "python-dotenv>=1.0.0",
+    "portalocker>=2.7.0",
+    "pandas>=2.0.0",
+    "plotly>=5.15.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.1.0",
+    "black>=23.0.0"
+]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "B", "I", "N", "UP", "PL"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
