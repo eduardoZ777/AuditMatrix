@@ -10,24 +10,5 @@ services:
     environment:
       - LOG_SOURCE_PATH=logs/sistema.log
       - AUDIT_TEXT_PATH=logs/auditoria.txt
-      - DATABASE_URL=sqlite:///logs/auditoria.db
-      - AUDIT_STORAGE_MODE=both
       - DEBUG=true
-    restart: unless-stopped
-
-  dashboard:
-    build: .
-    container_name: auditmatrix-dashboard
-    command: streamlit run dashboard.py --server.port=8501 --server.address=0.0.0.0
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./logs:/app/logs
-    environment:
-      - LOG_SOURCE_PATH=logs/sistema.log
-      - AUDIT_TEXT_PATH=logs/auditoria.txt
-      - DATABASE_URL=sqlite:///logs/auditoria.db
-      - AUDIT_STORAGE_MODE=both
-    depends_on:
-      - monitor
     restart: unless-stopped

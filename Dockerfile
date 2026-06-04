@@ -1,5 +1,4 @@
-# Multi-stage build setup
-FROM python:3.11-slim as base
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -14,16 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy packaging configuration and install dependencies
 COPY pyproject.toml ./
-# Create a dummy folder to satisfy setuptools during base dependency build
 RUN mkdir -p app && touch app/__init__.py
 RUN pip install .
 
-# Copy implementation files
+# Copy application files
 COPY app/ ./app
-COPY main.py dashboard.py ./
+COPY main.py ./
 
-# Create directory to share logs
+# Create directory for logs
 RUN mkdir -p logs
 
-# Expose Streamlit default port
-EXPOSE 8501
+CMD ["python", "main.py"]

@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 from app.config import settings
-from app.database import init_db
 from app.monitor import LogMonitor
 from app.parser import ErrorParser
 from app.repository import get_repository
@@ -50,23 +49,10 @@ def main() -> None:
     logger = logging.getLogger("AuditMatrix.Main")
 
     logger.info("=========================================")
-    logger.info("AuditMatrix Error Monitor Starting...")
+    logger.info("AuditMatrix Error Monitor Starting (Daemon)...")
     logger.info(f"Source Log File: {os.path.abspath(settings.LOG_SOURCE_PATH)}")
-    logger.info(f"Storage Mode:    {settings.AUDIT_STORAGE_MODE}")
-    if settings.AUDIT_STORAGE_MODE.lower() in ("text", "both"):
-        logger.info(f"Text Audit File: {os.path.abspath(settings.AUDIT_TEXT_PATH)}")
-    if settings.AUDIT_STORAGE_MODE.lower() in ("db", "both"):
-        logger.info(f"Database Path:   {settings.DATABASE_URL}")
+    logger.info(f"Storage Dir:     {os.path.dirname(settings.AUDIT_TEXT_PATH) or 'logs/'}")
     logger.info("=========================================")
-
-    # Initialize SQLite Database tables if needed
-    if settings.AUDIT_STORAGE_MODE.lower() in ("db", "both"):
-        try:
-            init_db()
-            logger.info("Database schema initialized/checked successfully.")
-        except Exception as e:
-            logger.critical(f"Database initialization failed: {e}", exc_info=True)
-            sys.exit(1)
 
     # Instantiate Core Layers
     try:
