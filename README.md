@@ -1,123 +1,137 @@
-# 🛡️ AuditMatrix: Real-Time Error Log Auditor & Analytics
+# 🛡️ AuditMatrix: Real-Time Error Log Auditor (Daemon Edition)
 
-An enterprise-grade, real-time log monitoring and auditing system. Designed with Clean Architecture principles, strict static typing, and separation of concerns.
+O **AuditMatrix** é um serviço de background (**daemon**) de nível empresarial desenvolvido em Python, focado em observabilidade e SRE. Ele monitora continuamente os logs gerados por sistemas ERP e aplicações legadas, filtra ruídos em tempo real e consolida apenas erros críticos em relatórios de auditoria limpos com rotação diária automatizada.
 
 ---
 
-## 🏗️ Architecture & Design Patterns
+## 💡 A Utilidade: Que Problema Resolvemos?
 
-AuditMatrix processes raw log files from legacy systems or ERPs, filters noise, validates structural requirements, and provides real-time audit visualization.
+Em ambientes corporativos, diagnosticar erros de ERPs e sistemas legados gera os seguintes gargalos:
+1. **Logs Sujos e Ruidosos**: Arquivos de log misturam milhares de linhas de `INFO`, `DEBUG` e exceções complexas, dificultando a localização da falha.
+2. **Desperdício de Tempo (MTTR Alto)**: Desenvolvedores e analistas de suporte precisam acessar servidores remotos e ler arquivos gigantescos só para descobrir qual erro ocorreu e em qual tela.
+3. **Bloqueios e Concorrência**: No Windows, tentar abrir ou ler arquivos de logs ativos no exato instante em que o ERP escreve neles gera erros de permissão (`PermissionError`).
 
-### Architecture Diagram
+**Como o AuditMatrix resolve:**
+* Ele roda silenciosamente como um daemon (serviço em background), monitorando o log ativo sem carregar o arquivo inteiro na memória.
+* Filtra mensagens usando **Regex** de alta performance e valida a integridade com **Pydantic**.
+* Consolida os erros capturados em arquivos limpos por dia (ex: `logs/auditoria_2026-06-04.txt`).
+* Evita colisões no Windows através de travas de arquivo controladas (`portalocker`) e retentativas automáticas.
+
+---
+
+## 🏗️ Fluxo e Design de Arquitetura
+
+O sistema implementa o **Princípio de Responsabilidade Única (SRP)** e o **Repository Pattern**:
+
 ```mermaid
 graph TD
-    ERP[ERP System Logs] -->|Appends raw entries| SourceLog[sistema.log]
-    SourceLog -->|Monitors changes in real-time| LogMonitor[LogMonitor class]
-    LogMonitor -->|Extracts metadata via Regex| ErrorParser[ErrorParser class]
-    ErrorParser -->|Validates data integrity| PydanticModel[Pydantic ParsedErrorLog]
-    PydanticModel -->|Dispatches to active storage| Repository[AuditRepository factory]
-    Repository -->|Option A: Lock-Safe Write| TextRepo[TextFileAuditRepository -> auditoria.txt]
-    Repository -->|Option B: ORM Commit| DBRepo[SQLAlchemyAuditRepository -> SQLite/SQL Server]
+    ERP[ERP / Legacy App] -->|Escreve no log bruto| sistema.log
     
-    TextRepo -->|Provides aggregated logs| Dashboard[Streamlit Dashboard]
-    DBRepo -->|Provides structural database query| Dashboard
+    subgraph AuditMatrix Daemon
+        Monitor[LogMonitor] -->|Leitura assíncrona tail -f| sistema.log
+        Monitor -->|Envia novas linhas| Parser[ErrorParser]
+        Parser -->|Regex & Pydantic Validation| ParsedLog[ParsedErrorLog Model]
+        ParsedLog -->|Persistência| Repository[TextFileAuditRepository]
+    end
+    
+    Repository -->|Captura Data Atual| Output[auditoria_YYYY-MM-DD.txt]
 ```
 
-### Key Design Patterns Implemented
-1. **Single Responsibility Principle (SRP)**:
-   - `parser.py` only extracts raw strings using regex.
-   - `repository.py` only manages data persistence.
-   - `monitor.py` only tracks file pointer offsets and triggers the processing pipeline.
-2. **Repository Pattern & Dependency Injection**:
-   - The persistence layer is completely decoupled. Toggling from local text files to SQLite or Microsoft SQL Server requires only an environment flag change, without modifying application logic.
-3. **Concurrency-Safe File Handling**:
-   - Includes retry loops and read-write sharing flags (`portalocker`) to avoid `PermissionError` blockages under high-concurrency environments on Windows.
-
 ---
 
-## 🛠️ Tech Stack & Requirements
+## 🚀 Guia Passo a Passo de Uso
 
-- **Base**: Python 3.11+
-- **Data Validation**: Pydantic v2
-- **Database Abstraction**: SQLAlchemy 2.0 (Core & ORM)
-- **Visual Interface**: Streamlit & Plotly
-- **Quality Assurance**: Pytest (Unit and Integration testing), Ruff (Linting)
-- **Containerization**: Docker & Docker Compose
+### Passo 1: Preparação do Ambiente
+Certifique-se de que possui o Python 3.11 ou superior instalado em sua máquina.
 
----
-
-## 🚀 Getting Started
-
-### Local Setup (Python)
-
-1. **Clone & Setup Virtualenv**:
+1. **Crie e ative o ambiente virtual**:
    ```bash
+   # No Windows
    python -m venv .venv
-   .venv\Scripts\activate     # On Windows
-   source .venv/bin/activate  # On Linux/macOS
+   .venv\Scripts\activate
+
+   # No Linux/macOS
+   python3 -m venv .venv
+   source .venv/bin/activate
    ```
 
-2. **Install Dependencies**:
+2. **Instale o projeto e as dependências**:
    ```bash
    pip install .
-   # Install dev tools if you want to run tests
+   ```
+   *Se desejar executar os testes automatizados, instale as dependências de desenvolvimento:*
+   ```bash
    pip install .[dev]
    ```
 
-3. **Configure Environment**:
-   Duplicate `.env.example` to `.env` and adjust variables if needed:
-   ```bash
-   copy .env.example .env
-   ```
-
-4. **Run the Monitor Service**:
-   ```bash
-   python main.py --read-from-start
-   ```
-
-5. **Run the Dashboard**:
-   ```bash
-   streamlit run dashboard.py
-   ```
-
 ---
 
-### Running via Docker Compose (Recommended)
-
-Start the entire stack (Database, Monitor Service, and Streamlit Dashboard) with a single command:
+### Passo 2: Configuração das Variáveis de Ambiente
+Duplique o arquivo `.env.example` para `.env` e configure de acordo com a sua infraestrutura:
 ```bash
-docker-compose up --build -d
+copy .env.example .env
 ```
-Access the dashboard at [http://localhost:8501](http://localhost:8501).
+
+Configurações disponíveis no `.env`:
+* `LOG_SOURCE_PATH`: Caminho do arquivo de logs sujos gerado pelo seu ERP (ex: `logs/sistema.log`).
+* `AUDIT_TEXT_PATH`: Diretório base e prefixo onde a auditoria será criada (ex: `logs/auditoria.txt`, que se tornará `logs/auditoria_YYYY-MM-DD.txt`).
+* `LOG_PARSER_REGEX`: Expressão regular contendo os grupos de captura nomeados: `timestamp`, `level`, `nome_programa`, `modulo_sistema` e `mensagem_erro`.
 
 ---
 
-## 🧪 Testing
+### Passo 3: Executando o Daemon
 
-We implement isolated unit testing for parsers and database repositories, alongside multi-threaded integration testing for the active tailing monitor.
+Para iniciar o monitoramento de logs em tempo real a partir do final do arquivo:
+```bash
+python main.py
+```
 
-Run the test suite:
+Para processar o arquivo de logs do ERP desde o início (importação histórica):
+```bash
+python main.py --read-from-start
+```
+
+---
+
+### Passo 4: Executando Testes de Validação
+Garantimos a confiabilidade do sistema por meio de testes unitários e testes de integração multi-threaded que simulam a ingestão de dados ativos:
 ```bash
 pytest -v
 ```
 
 ---
 
-## 💼 LinkedIn Pitch (Como vender seu peixe)
+### Passo 5: Executando via Docker Compose (Produção/Staging)
+Você pode rodar o daemon conteinerizado de forma isolada:
+```bash
+docker-compose up --build -d
+```
+O container compartilhará os arquivos de logs da sua máquina através de volumes Docker, operando de forma 100% transparente.
 
-Tire um print do terminal executando o monitor e da tela do dashboard do Streamlit, e use o texto abaixo para postar:
+---
 
-> **Automação de Observabilidade e Cultura SRE: Reduzindo MTTR com Monitoramento de Logs Real-time** 🛠️📊
->
-> Desenvolvi o **AuditMatrix**, uma solução de monitoramento de logs locais focada em infraestrutura resiliente e cultura DevOps para suporte técnico avançado.
->
-> **O que o projeto faz?**
-> Monitora de forma contínua e assíncrona (`tail -f` nativo) os logs complexos gerados pelo ERP original da empresa. O script captura exceções em milissegundos utilizando Expressões Regulares (Regex), valida a consistência de dados via **Pydantic** e consolida tudo de forma estruturada.
->
-> **Destaques técnicos de Arquitetura Sênior:**
-> 1. **Repository Pattern**: Abstração total de banco de dados (SQLAlchemy) e arquivos planos (.txt), permitindo alternar de arquivos locais para SQL Server via simples variável de ambiente.
-> 2. **Resiliência e Concorrência**: Lógica de retries e locking seguro contra bloqueios de arquivos no Windows (evitando falhas quando o ERP escreve concorrentemente).
-> 3. **Interface Visual Premium**: Painel analítico construído com **Streamlit** e **Plotly** para análise rápida de erros mais frequentes e filtros de busca instantâneos.
-> 4. **Testes de Ingestão**: Cobertura completa de testes automatizados com **Pytest** utilizando threads em background para validar a escuta ativa de arquivos.
->
-> Uma arquitetura limpa, dockerizada e pronta para produção que transforma logs sujos em relatórios limpos de auditoria para o time de suporte e suporte N3 resolver incidentes muito mais rápido.
+## 💼 LinkedIn Pitch (Pronto para Postar! 🚀)
+
+Tire um print do terminal rodando o comando `pytest -v` ou do arquivo `auditoria_YYYY-MM-DD.txt` populado e use a publicação abaixo para compartilhar no LinkedIn:
+
+***
+
+**💡 Automação de Observabilidade e Cultura SRE: Reduzindo o MTTR com Auditoria de Logs em Tempo Real** 🛡️⚙️
+
+Em sistemas corporativos e ERPs legados, debugar falhas costuma ser sinônimo de acessar servidores remotos de forma reativa e garimpar arquivos de logs gigantescos e cheios de ruído. 
+
+Para resolver essa dor de forma profissional, desenvolvi o **AuditMatrix**: um serviço de background (**Daemon**) resiliente projetado com práticas modernas de desenvolvimento de software em Python.
+
+**O que a solução resolve na prática?**
+* **Escuta Ativa (Native tail -f)**: Monitora de forma assíncrona o log sujo do ERP. Ele consome novas linhas sob demanda, garantindo consumo de memória RAM próximo a zero mesmo em arquivos de múltiplos gigabytes.
+* **Validação de Schemas com Pydantic**: Transforma linhas de erro confusas em estruturas de dados tipadas e consistentes, aplicando expressões regulares robustas.
+* **Rotação Diária Automatizada**: O daemon separa automaticamente os logs limpos por data (ex: `logs/auditoria_2026-06-04.txt`), facilitando o diagnóstico rápido pelo time de suporte.
+* **Resiliência a Rotações**: Se o sistema original truncar ou limpar o arquivo de log monitorado (`logrotate`), o daemon detecta a alteração no disco em tempo real e reseta o ponteiro sem travar.
+* **Prevenção de PermissionError**: Em ambientes Windows de alta concorrência, implementei file locks (`portalocker`) e estratégias de retentativa para evitar conflitos de leitura/escrita.
+
+Aplicações modernas exigem arquiteturas resilientes que evitam o crash silencioso. O projeto está 100% dockerizado e coberto por testes automatizados (`pytest`).
+
+Confira o repositório completo e os testes passando! 👇
+[Inserir link do seu repositório Git]
+
+#Python #SRE #Observability #CleanArchitecture #Docker #DevOps #Backend #SoftwareEngineering
