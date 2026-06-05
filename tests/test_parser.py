@@ -3,7 +3,7 @@ from app.parser import ErrorParser
 from app.models import ParsedErrorLog
 
 def test_parser_valid_line() -> None:
-    """Verifies that a valid log line matching the default regex is parsed correctly."""
+    """Valida se uma linha de log correta correspondente ao formato regex é extraída com sucesso."""
     line = "2026-06-04 12:00:00 [ERROR] [ERPMain] [LoginView] - User authentication failed."
     parser = ErrorParser()
     parsed = parser.parse_line(line)
@@ -16,7 +16,7 @@ def test_parser_valid_line() -> None:
     assert parsed.mensagem_erro == "User authentication failed."
 
 def test_parser_valid_exception_level() -> None:
-    """Verifies that 'Exception' log level works in parser."""
+    """Valida se o nível de erro do tipo 'Exception' é interpretado corretamente pelo parser."""
     line = "2026-06-04 12:05:00 [Exception] [BillingService] [InvoiceGen] - Connection timeout."
     parser = ErrorParser()
     parsed = parser.parse_line(line)
@@ -28,7 +28,7 @@ def test_parser_valid_exception_level() -> None:
     assert parsed.mensagem_erro == "Connection timeout."
 
 def test_parser_non_matching_line() -> None:
-    """Verifies that non-error levels (e.g. INFO) are filtered out and return None."""
+    """Valida se níveis que não sejam de erro (ex: INFO) são ignorados e retornam None."""
     line = "2026-06-04 12:00:00 [INFO] [ERPMain] [LoginView] - User admin logged in."
     parser = ErrorParser()
     parsed = parser.parse_line(line)
@@ -36,12 +36,12 @@ def test_parser_non_matching_line() -> None:
     assert parsed is None
 
 def test_parser_empty_line() -> None:
-    """Verifies empty or spacing lines return None."""
+    """Valida se linhas vazias ou com espaços retornam None."""
     parser = ErrorParser()
     assert parser.parse_line("") is None
     assert parser.parse_line("   \n") is None
 
 def test_parser_invalid_regex_compilation() -> None:
-    """Verifies compiling an invalid regex pattern raises ValueError."""
+    """Valida se a compilação de uma expressão regular malformada lança ValueError."""
     with pytest.raises(ValueError):
-        ErrorParser(regex_pattern="[unclosed brackets")
+        ErrorParser(regex_pattern="[brackets sem fechamento")

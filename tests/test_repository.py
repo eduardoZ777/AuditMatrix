@@ -5,7 +5,7 @@ from app.models import ParsedErrorLog
 from app.repository import TextFileAuditRepository
 
 def test_text_file_repository_static(tmp_path: pytest.TempPathFactory) -> None:
-    """Verifies that TextFileAuditRepository works correctly with a static test filepath."""
+    """Valida se o TextFileAuditRepository grava corretamente em caminhos estáticos fornecidos em testes."""
     temp_file = tmp_path / "auditoria_test.txt"
     repo = TextFileAuditRepository(filepath=str(temp_file))
 
@@ -34,8 +34,8 @@ def test_text_file_repository_static(tmp_path: pytest.TempPathFactory) -> None:
 
 
 def test_text_file_repository_rotation(tmp_path: pytest.TempPathFactory) -> None:
-    """Verifies that TextFileAuditRepository dynamically creates daily-rotating log files."""
-    # Point the repository to a temporary directory instead of a file
+    """Valida se o TextFileAuditRepository cria arquivos dinamicamente rotacionados com base na data."""
+    # Aponta o repositório para uma pasta temporária em vez de um arquivo estático
     repo = TextFileAuditRepository(filepath=os.path.join(str(tmp_path), "fake_auditoria.txt"))
 
     log = ParsedErrorLog(
@@ -48,7 +48,7 @@ def test_text_file_repository_rotation(tmp_path: pytest.TempPathFactory) -> None
 
     repo.save(log)
 
-    # Determine dynamic path: logs/auditoria_YYYY-MM-DD.txt
+    # Determina o nome do arquivo dinâmico esperado: auditoria_YYYY-MM-DD.txt
     date_str = datetime.now().strftime("%Y-%m-%d")
     expected_file = tmp_path / f"auditoria_{date_str}.txt"
 

@@ -8,7 +8,7 @@ from app.repository import AuditRepository
 from app.models import ParsedErrorLog
 
 class MockRepository(AuditRepository):
-    """Simple mock repository to inspect saved entries during test."""
+    """Mecanismo mock simples para inspecionar os logs gravados durante os testes."""
     
     def __init__(self) -> None:
         self.saved_entries: List[ParsedErrorLog] = []
@@ -21,17 +21,17 @@ class MockRepository(AuditRepository):
 
 
 def test_log_monitor_loop(tmp_path: pytest.TempPathFactory) -> None:
-    """Verifies that the log monitor detects appended error lines in real-time using threading."""
+    """Valida se o monitor captura e processa logs adicionados dinamicamente ao arquivo em tempo real."""
     source_log = tmp_path / "sistema.log"
     
-    # Create the initial source log file with a non-error line
+    # Cria o arquivo de log original com uma linha de informação inicial
     with open(source_log, "w", encoding="utf-8") as f:
         f.write("2026-06-04 12:00:00 [INFO] [App] [Main] - Application bootstrapped\n")
 
     repo = MockRepository()
     parser = ErrorParser()
 
-    # Set read_from_start to True and poll_interval to 0.05 seconds for fast test execution
+    # Define o monitor com intervalo rápido de polling (0.05s) para acelerar a execução do teste
     monitor = LogMonitor(
         log_source_path=str(source_log),
         repository=repo,
@@ -40,27 +40,27 @@ def test_log_monitor_loop(tmp_path: pytest.TempPathFactory) -> None:
         read_from_start=True
     )
 
-    # Launch monitor thread in the background
+    # Inicia a thread em background para rodar o monitor
     monitor_thread = threading.Thread(target=monitor.start)
     monitor_thread.daemon = True
     monitor_thread.start()
 
-    # Allow thread to start and seek positions
+    # Aguarda a inicialização da thread do monitor
     time.sleep(0.1)
 
-    # Append an error line
+    # Simula a inserção de um erro gerado pelo ERP original
     with open(source_log, "a", encoding="utf-8") as f:
         f.write("2026-06-04 12:01:00 [ERROR] [ERPMain] [DBConnection] - SQL Server Timeout\n")
         f.flush()
 
-    # Allow the monitor to pick up and process the change
+    # Aguarda o polling capturar a alteração
     time.sleep(0.2)
 
-    # Gracefully stop the monitor loop and join the thread
+    # Encerra o monitor graciosamente
     monitor.stop()
     monitor_thread.join(timeout=1.0)
 
-    # Assertions
+    # Asserções finais
     assert len(repo.saved_entries) == 1
     captured = repo.saved_entries[0]
     assert captured.nome_programa == "ERPMain"

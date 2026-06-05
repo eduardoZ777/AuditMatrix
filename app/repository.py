@@ -11,29 +11,29 @@ from app.models import ParsedErrorLog
 logger = logging.getLogger(__name__)
 
 class AuditRepository(ABC):
-    """Abstract Repository pattern interface for Audited Logs."""
+    """Interface abstrata do padrão Repository para logs de auditoria."""
 
     @abstractmethod
     def save(self, entry: ParsedErrorLog) -> None:
-        """Persist a parsed error log."""
+        """Salva/Persiste um log de erro validado."""
         pass
 
     @abstractmethod
     def get_all(self) -> List[ParsedErrorLog]:
-        """Retrieve all persisted error logs."""
+        """Recupera todos os logs de erro gravados."""
         pass
 
 
 class TextFileAuditRepository(AuditRepository):
-    """Saves audited logs to daily rotating flat text files."""
+    """Implementação física que salva logs em arquivos de texto locais com rotação diária."""
 
     def __init__(self, filepath: Optional[str] = None) -> None:
-        # Resolve target logs directory from filepath configuration
+        # Resolve o diretório de destino a partir do arquivo configurado
         path = filepath or settings.AUDIT_TEXT_PATH
         self.log_dir = os.path.dirname(path) or "logs"
         os.makedirs(self.log_dir, exist_ok=True)
 
-        # Allow static file writing only for isolated unit testing
+        # Permite uso de arquivos estáticos apenas em testes automatizados
         self.is_static = False
         if filepath and (
             "test" in os.path.basename(filepath) or filepath.endswith("_test.txt")
@@ -41,17 +41,17 @@ class TextFileAuditRepository(AuditRepository):
             self.is_static = True
             self.static_path = filepath
 
-        # Regex to parse the saved logs back if requested
+        # Regex para ler de volta e analisar os logs salvos
         self.read_pattern = re.compile(
             r"^\[(?P<timestamp>[^\]]+)\]\s+\[(?P<level>[^\]]+)\]\s+\[(?P<nome_programa>[^\]]+)\]\s+\[(?P<modulo_sistema>[^\]]+)\]\s+->\s+(?P<mensagem_erro>.+)$"
         )
 
     def _get_filepath(self) -> str:
-        """Dynamically generates the file path using the current local date."""
+        """Gera o nome do arquivo dinamicamente com base na data local atual."""
         if self.is_static:
             return self.static_path
         
-        # Build daily audit filename dynamically, e.g. auditoria_2026-06-04.txt
+        # Constrói o nome do arquivo, ex: logs/auditoria_2026-06-04.txt
         date_str = datetime.now().strftime("%Y-%m-%d")
         return os.path.join(self.log_dir, f"auditoria_{date_str}.txt")
 
@@ -63,7 +63,7 @@ class TextFileAuditRepository(AuditRepository):
         
         target_path = self._get_filepath()
 
-        # Concurrency safety: locking and retry mechanism for Windows environments
+        # Segurança de concorrência: mecanismos de locking e retentativa para Windows
         max_retries = 5
         delay = 0.1
         for attempt in range(max_retries):
@@ -79,25 +79,25 @@ class TextFileAuditRepository(AuditRepository):
             except PermissionError as e:
                 if attempt == max_retries - 1:
                     logger.error(
-                        f"PermissionError: Failed to write to {target_path} after {max_retries} attempts."
+                        f"PermissionError: Falha ao gravar em {target_path} após {max_retries} tentativas."
                     )
                     raise e
                 time.sleep(delay)
 
     def get_all(self) -> List[ParsedErrorLog]:
-        """Retrieves all parsed error logs from all auditoria_*.txt files in the log directory."""
+        """Lê todos os logs de erro de todos os arquivos auditoria_*.txt na pasta."""
         if self.is_static:
             files_to_read = [self.static_path] if os.path.exists(self.static_path) else []
         else:
             if not os.path.exists(self.log_dir):
                 return []
-            # Find all matching files in the logs directory
+            # Lista arquivos correspondentes no diretório de logs
             files_to_read = [
                 os.path.join(self.log_dir, f)
                 for f in os.listdir(self.log_dir)
                 if f.startswith("auditoria_") and f.endswith(".txt")
             ]
-            files_to_read.sort()  # Sort chronologically
+            files_to_read.sort()  # Ordena cronologicamente
 
         entries = []
         max_retries = 5
@@ -128,16 +128,15 @@ class TextFileAuditRepository(AuditRepository):
                                         mensagem_erro=gd["mensagem_erro"],
                                     )
                                 )
-                    break  # File read successfully, break retry loop and go to next file
+                    break  # Leitura realizada com sucesso, quebra o loop de retentativas
                 except PermissionError:
                     if attempt == max_retries - 1:
-                        logger.error(f"PermissionError: Failed to read from {filepath}.")
+                        logger.error(f"PermissionError: Falha ao ler de {filepath}.")
                     time.sleep(delay)
 
         return entries
 
 
 def get_repository() -> AuditRepository:
-    """Factory function to build the rotating file repository."""
-    # Since the project is purely a background daemon, we return the daily rotating repository
+    """Função factory para instanciar o repositório de logs rotacionados."""
     return TextFileAuditRepository()

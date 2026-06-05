@@ -4,15 +4,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-# --- Pydantic Data Models (Validation & Serialization) ---
+# --- Modelos Pydantic (Validação e Serialização) ---
 
 class ParsedErrorLog(BaseModel):
-    """Pydantic model representing a structured and validated log error."""
-    timestamp: str = Field(..., description="Date and time of the log event")
-    level: str = Field(..., description="Log level (e.g. ERROR, Exception)")
-    nome_programa: str = Field(..., description="Program/executable name")
-    modulo_sistema: str = Field(..., description="Module or view name")
-    mensagem_erro: str = Field(..., description="Exact error message details")
+    """Modelo Pydantic que representa um log de erro estruturado e validado."""
+    timestamp: str = Field(..., description="Data e hora do evento de log")
+    level: str = Field(..., description="Nível do log (ex: ERROR, Exception)")
+    nome_programa: str = Field(..., description="Nome do programa ou executável")
+    modulo_sistema: str = Field(..., description="Nome do módulo, tela ou classe")
+    mensagem_erro: str = Field(..., description="Mensagem exata e detalhes do erro")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -22,29 +22,29 @@ class ParsedErrorLog(BaseModel):
     @field_validator("timestamp")
     @classmethod
     def validate_timestamp(cls, v: str) -> str:
-        """Validate timestamp can be parsed to ensure data consistency."""
+        """Valida se o formato do timestamp é reconhecido para manter a consistência."""
         try:
-            # We check if it can be parsed using one of the common formats
+            # Tenta converter usando formatos comuns de data e hora
             for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S,%f", "%Y-%m-%dT%H:%M:%S"):
                 try:
                     datetime.strptime(v, fmt)
                     return v
                 except ValueError:
                     continue
-            raise ValueError("Timestamp format not recognized")
+            raise ValueError("Formato de data e hora não reconhecido")
         except Exception as e:
-            raise ValueError(f"Invalid timestamp format: {e}")
+            raise ValueError(f"Formato de timestamp inválido: {e}")
 
 
-# --- SQLAlchemy Database Models ---
+# --- Modelos de Banco de Dados SQLAlchemy ---
 
 class Base(DeclarativeBase):
-    """SQLAlchemy base class."""
+    """Classe base declarativa do SQLAlchemy."""
     pass
 
 
 class AuditLogEntry(Base):
-    """SQLAlchemy model mapping database schema for audited error entries."""
+    """Modelo mapeado do SQLAlchemy para persistência no banco de dados de auditoria."""
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -61,7 +61,7 @@ class AuditLogEntry(Base):
 
     @classmethod
     def from_pydantic(cls, schema: ParsedErrorLog) -> Self:
-        """Create a SQLAlchemy DB entry from a parsed Pydantic schema."""
+        """Converte um schema Pydantic em uma entidade de banco do SQLAlchemy."""
         parsed_dt = None
         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S,%f", "%Y-%m-%dT%H:%M:%S"):
             try:
@@ -71,7 +71,7 @@ class AuditLogEntry(Base):
                 continue
 
         if not parsed_dt:
-            # Fallback to current time if parsing fails unexpectedly
+            # Fallback para o horário atual se a conversão falhar inesperadamente
             parsed_dt = datetime.utcnow()
 
         return cls(
