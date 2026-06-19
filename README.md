@@ -4,7 +4,6 @@ O AuditMatrix é um projeto criado com um objetivo claro: mapear, tratar e ident
 
 Para entregar essa solução, o script roda em segundo plano monitorando o arquivo de log original de forma contínua. Assim que o sistema registra uma linha confusa de erro, o código a intercepta na mesma hora. Utilizando expressões regulares, a aplicação limpa o texto bruto e extrai apenas a informação útil: a data, a tela que apresentou o defeito e o motivo técnico real da falha. O mapeamento desses dados consolidados permite analisar o comportamento do sistema e atuar na causa raiz. Para garantir a consistência de toda a extração, apliquei a biblioteca Pydantic na validação de cada registro.
 
-
 ## Como o Sistema Funciona
 
 A lógica da aplicação separa totalmente a leitura do texto sujo da gravação do texto limpo, operando de forma assíncrona.
